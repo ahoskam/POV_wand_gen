@@ -11,8 +11,8 @@ class POVWandDesigner(QMainWindow):
         self.setWindowTitle("POV Wand Pattern Designer")
         self.setMinimumSize(800, 600)
 
-        # Set the window icon (replace 'pov_wand.ico' with your icon file path)
-        self.setWindowIcon(QIcon('pov_wand.ico'))  # Ensure this file exists in the same directory
+        # Set the window icon
+        self.setWindowIcon(QIcon('pov_wand.ico'))  # Ensure this file exists in the directory
 
         # Initial parameters
         self.width = 64
@@ -111,7 +111,81 @@ class POVWandDesigner(QMainWindow):
     def draw_line(self, grid, r0, c0, r1, c1, value):
         dr = abs(r1 - r0)
         dc = abs(c1 - c0)
-        sr = 1 self.draw_circle(self.grid, 7, 8, 15, 16, True)
+        sr = 1 if r0 < r1 else -1
+        sc = 1 if c0 < c1 else -1
+        err = (dc if dc > dr else -dr) / 2
+
+        while True:
+            if 0 <= r0 < self.height and 0 <= c0 < self.width:
+                grid[r0][c0] = value
+            if r0 == r1 and c0 == c1:
+                break
+            err2 = err
+            if err2 > -dc:
+                err -= dr
+                c0 += sc
+            if err2 < dr:
+                err += dc
+                r0 += sr
+
+    def draw_circle(self, grid, center_row, center_col, end_row, end_col, value):
+        radius = math.sqrt((end_row - center_row) ** 2 + (end_col - center_col) ** 2)
+        x = round(radius)
+        y = 0
+        err = 0
+
+        while x >= y:
+            for r, c in [(center_row + y, center_col + x), (center_row + x, center_col + y),
+                        (center_row - y, center_col + x), (center_row - x, center_col + y),
+                        (center_row - y, center_col - x), (center_row - x, center_col - y),
+                        (center_row + y, center_col - x), (center_row + x, center_col - y)]:
+                if 0 <= r < self.height and 0 <= c < self.width:
+                    grid[r][c] = value
+            if err <= 0:
+                y += 1
+                err += 2 * y + 1
+            if err > 0:
+                x -= 1
+                err -= 2 * x + 1
+
+    def draw_heart(self):
+        self.clear_grid()
+        heart_pattern = [
+            [(3, 3), (4, 3), (5, 3), (6, 3), (10, 3), (11, 3), (12, 3), (13, 3), (14, 3), (15, 3),
+             (17, 3), (18, 3), (19, 3), (20, 3), (21, 3), (22, 3), (23, 3), (24, 3), (25, 3), (26, 3), (27, 3), (28, 3), (29, 3)],
+            [(3, 4), (4, 4), (5, 4), (6, 4), (7, 4), (9, 4), (10, 4), (11, 4), (12, 4), (13, 4), (14, 4), (15, 4),
+             (16, 4), (17, 4), (18, 4), (19, 4), (20, 4), (21, 4), (22, 4), (23, 4), (24, 4), (25, 4), (26, 4), (27, 4), (28, 4)],
+            [(3, 5), (4, 5), (5, 5), (6, 5)],
+            [(24, 8), (25, 8), (26, 8), (22, 9), (23, 9), (24, 9), (25, 9), (26, 9), (27, 9), (28, 9),
+             (20, 10), (21, 10), (22, 10), (23, 10), (24, 10), (25, 10), (26, 10), (27, 10), (28, 10), (29, 10), (30, 10),
+             (19, 11), (20, 11), (21, 11), (22, 11), (23, 11), (24, 11), (25, 11), (26, 11), (27, 11), (28, 11), (29, 11), (30, 11), (31, 11)]
+        ]
+        for points in heart_pattern:
+            for col, row in points:
+                if col < self.width and row < self.height:
+                    self.grid[row][col] = True
+        self.grid_widget.update()
+        self.preview_widget.update()
+
+    def draw_hi(self):
+        self.clear_grid()
+        hi_pattern = [
+            [(2, 1), (2, 2), (2, 3), (2, 4), (2, 5), (2, 6), (2, 7), (3, 4), (4, 4), (5, 4),
+             (6, 1), (6, 2), (6, 3), (6, 4), (6, 5), (6, 6), (6, 7), (9, 1), (10, 1), (11, 1), (12, 1), (13, 1),
+             (11, 2), (11, 3), (11, 4), (11, 5), (11, 6), (9, 7), (10, 7), (11, 7), (12, 7), (13, 7)],
+            [(2, 8), (2, 9), (2, 10), (2, 11), (2, 12), (2, 13), (6, 8), (6, 9), (6, 10), (6, 11), (6, 12), (6, 13),
+             (11, 8), (11, 9), (11, 10), (11, 11), (11, 12), (9, 13), (10, 13), (11, 13), (12, 13), (13, 13)]
+        ]
+        for points in hi_pattern:
+            for col, row in points:
+                if col < self.width and row < self.height:
+                    self.grid[row][col] = True
+        self.grid_widget.update()
+        self.preview_widget.update()
+
+    def draw_smiley(self):
+        self.clear_grid()
+        self.draw_circle(self.grid, 7, 8, 15, 16, True)
         self.draw_circle(self.grid, 4, 5, 5, 7, True)
         self.draw_circle(self.grid, 4, 11, 5, 13, True)
         for col in range(5, 12):
