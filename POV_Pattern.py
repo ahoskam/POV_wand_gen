@@ -130,51 +130,78 @@ class POVWandDesigner(QMainWindow):
 
     def draw_circle(self, grid, center_row, center_col, end_row, end_col, value):
         radius = math.sqrt((end_row - center_row) ** 2 + (end_col - center_col) ** 2)
-        x = round(radius)
+        radius = round(radius)
+        x = radius
         y = 0
         err = 0
 
         while x >= y:
-            for r, c in [(center_row + y, center_col + x), (center_row + x, center_col + y),
-                        (center_row - y, center_col + x), (center_row - x, center_col + y),
-                        (center_row - y, center_col - x), (center_row - x, center_col - y),
-                        (center_row + y, center_col - x), (center_row + x, center_col - y)]:
+            # Plot points in all eight octants
+            points = [
+                (center_row + y, center_col + x), (center_row + x, center_col + y),
+                (center_row - y, center_col + x), (center_row - x, center_col + y),
+                (center_row - y, center_col - x), (center_row - x, center_col - y),
+                (center_row + y, center_col - x), (center_row + x, center_col - y)
+            ]
+            for r, c in points:
                 if 0 <= r < self.height and 0 <= c < self.width:
                     grid[r][c] = value
-            if err <= 0:
-                y += 1
-                err += 2 * y + 1
-            if err > 0:
+            # Additional points to smooth the circle
+            if x > y:
+                points = [
+                    (center_row + y + 1, center_col + x), (center_row + x, center_col + y + 1),
+                    (center_row - y - 1, center_col + x), (center_row - x, center_col + y + 1),
+                    (center_row - y - 1, center_col - x), (center_row - x, center_col - y - 1),
+                    (center_row + y + 1, center_col - x), (center_row + x, center_col - y - 1)
+                ]
+                for r, c in points:
+                    if 0 <= r < self.height and 0 <= c < self.width:
+                        grid[r][c] = value
+            y += 1
+            err += 1 + 2 * y
+            if 2 * (err - x) + 1 > 0:
                 x -= 1
-                err -= 2 * x + 1
+                err += 1 - 2 * x
 
     def fill_circle(self, grid, center_row, center_col, radius, value):
         """Fill a circle with a given value."""
         for r in range(self.height):
             for c in range(self.width):
-                if math.sqrt((r - center_row) ** 2 + (c - center_col) ** 2) <= radius:
+                distance = math.sqrt((r - center_row) ** 2 + (c - center_col) ** 2)
+                if distance <= radius:
                     grid[r][c] = value
 
     def draw_heart(self):
         self.clear_grid()
-        # Calculate offset to center the pattern
-        pattern_width = 31  # Max col index (31) - Min col index (3) + 1
-        offset = (self.width - pattern_width) // 2
+        # Heart pattern as binary strings (16 bits per row)
         heart_pattern = [
-            [(3, 3), (4, 3), (5, 3), (6, 3), (10, 3), (11, 3), (12, 3), (13, 3), (14, 3), (15, 3),
-             (17, 3), (18, 3), (19, 3), (20, 3), (21, 3), (22, 3), (23, 3), (24, 3), (25, 3), (26, 3), (27, 3), (28, 3), (29, 3)],
-            [(3, 4), (4, 4), (5, 4), (6, 4), (7, 4), (9, 4), (10, 4), (11, 4), (12, 4), (13, 4), (14, 4), (15, 4),
-             (16, 4), (17, 4), (18, 4), (19, 4), (20, 4), (21, 4), (22, 4), (23, 4), (24, 4), (25, 4), (26, 4), (27, 4), (28, 4)],
-            [(3, 5), (4, 5), (5, 5), (6, 5)],
-            [(24, 8), (25, 8), (26, 8), (22, 9), (23, 9), (24, 9), (25, 9), (26, 9), (27, 9), (28, 9),
-             (20, 10), (21, 10), (22, 10), (23, 10), (24, 10), (25, 10), (26, 10), (27, 10), (28, 10), (29, 10), (30, 10),
-             (19, 11), (20, 11), (21, 11), (22, 11), (23, 11), (24, 11), (25, 11), (26, 11), (27, 11), (28, 11), (29, 11), (30, 11), (31, 11)]
+            "0000011000110000",  # Row 0
+            "0001111111111000",  # Row 1
+            "0011111111111100",  # Row 2
+            "0111111111111110",  # Row 3
+            "0111111111111110",  # Row 4
+            "0111111111111110",  # Row 5
+            "0011111111111100",  # Row 6
+            "0001111111111000",  # Row 7
+            "0000111111110000",  # Row 8
+            "0000011111100000",  # Row 9
+            "0000001111000000",  # Row 10
+            "0000000110000000",  # Row 11
         ]
-        for points in heart_pattern:
-            for col, row in points:
-                shifted_col = col + offset
-                if 0 <= shifted_col < self.width and row < self.height:
-                    self.grid[row][shifted_col] = True
+        # Calculate offset to center the pattern horizontally (16 bits wide)
+        pattern_width = 16
+        h_offset = (self.width - pattern_width) // 2
+        # Shift down by 4 rows to center vertically (16 rows total, 12 rows pattern)
+        v_offset = 2  # (16 - 12) // 2 + 2 = 4
+
+        # Draw the heart pattern
+        for row, binary in enumerate(heart_pattern):
+            shifted_row = row + v_offset
+            for col, bit in enumerate(binary):
+                shifted_col = col + h_offset
+                if 0 <= shifted_row < self.height and 0 <= shifted_col < self.width:
+                    self.grid[shifted_row][shifted_col] = (bit == '1')
+
         self.grid_widget.update()
         self.preview_widget.update()
 
@@ -184,11 +211,30 @@ class POVWandDesigner(QMainWindow):
         pattern_width = 13  # Max col index (13) - Min col index (2) + 1
         offset = (self.width - pattern_width) // 2
         hi_pattern = [
-            [(2, 1), (2, 2), (2, 3), (2, 4), (2, 5), (2, 6), (2, 7), (3, 4), (4, 4), (5, 4),
-             (6, 1), (6, 2), (6, 3), (6, 4), (6, 5), (6, 6), (6, 7), (9, 1), (10, 1), (11, 1), (12, 1), (13, 1),
-             (11, 2), (11, 3), (11, 4), (11, 5), (11, 6), (9, 7), (10, 7), (11, 7), (12, 7), (13, 7)],
-            [(2, 8), (2, 9), (2, 10), (2, 11), (2, 12), (2, 13), (6, 8), (6, 9), (6, 10), (6, 11), (6, 12), (6, 13),
-             (11, 8), (11, 9), (11, 10), (11, 11), (11, 12), (9, 13), (10, 13), (11, 13), (12, 13), (13, 13)]
+            # Top half
+            [
+                # H left vertical line
+                (2, 1), (2, 2), (2, 3), (2, 4), (2, 5), (2, 6), (2, 7),
+                # H horizontal bar (on row 6)
+                (3, 6), (4, 6), (5, 6),
+                # H right vertical line
+                (6, 1), (6, 2), (6, 3), (6, 4), (6, 5), (6, 6), (6, 7),
+                # I top bar
+                (9, 1), (10, 1), (11, 1), (12, 1), (13, 1),
+                # I vertical bar
+                (11, 2), (11, 3), (11, 4), (11, 5), (11, 6), (11, 7),
+            ],
+            # Bottom half
+            [
+                # H left vertical line
+                (2, 8), (2, 9), (2, 10), (2, 11), (2, 12), (2, 13),
+                # H right vertical line
+                (6, 8), (6, 9), (6, 10), (6, 11), (6, 12), (6, 13),
+                # I vertical bar
+                (11, 8), (11, 9), (11, 10), (11, 11), (11, 12),
+                # I bottom bar
+                (9, 13), (10, 13), (11, 13), (12, 13), (13, 13)
+            ]
         ]
         for points in hi_pattern:
             for col, row in points:
@@ -203,9 +249,9 @@ class POVWandDesigner(QMainWindow):
         # Center the smiley face
         center_col = self.width // 2
         center_row = self.height // 2  # Middle of 16 rows is 7-8
-        radius = min(self.width // 5, 7)  # Adjust radius based on grid size, max 7 for height
+        radius = min(self.width // 4, 7)  # Adjust radius based on grid size, max 7 for height
 
-        # Fill the face circle with lit LEDs (True)
+        # Fill the face circle with lit LEDs (True) to create a solid background
         self.fill_circle(self.grid, center_row, center_col, radius, True)
 
         # Draw unlit eyes (False)
@@ -223,6 +269,9 @@ class POVWandDesigner(QMainWindow):
             row = center_row + radius // 2 - 1
             if 0 <= row < self.height and 0 <= col < self.width:
                 self.grid[row][col] = False
+
+        # Redraw the outline of the face circle to ensure it's crisp and black
+        self.draw_circle(self.grid, center_row, center_col, center_row + radius, center_col, True)
 
         self.grid_widget.update()
         self.preview_widget.update()
