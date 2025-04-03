@@ -1,9 +1,10 @@
 import sys
 import math
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-                            QPushButton, QComboBox, QSpinBox, QLabel, QTextEdit, QGridLayout)
-from PyQt5.QtGui import QPainter, QColor, QPen, QImage, QPixmap, QIcon
-from PyQt5.QtCore import Qt, QSize, QPoint
+                            QPushButton, QComboBox, QSpinBox, QLabel, QTextEdit, QGridLayout,
+                            QButtonGroup)
+from PyQt5.QtGui import QPainter, QColor, QPen, QImage, QPixmap, QIcon, QDrag
+from PyQt5.QtCore import Qt, QSize, QPoint, QMimeData
 
 class POVWandDesigner(QMainWindow):
     def __init__(self):
@@ -65,6 +66,10 @@ class POVWandDesigner(QMainWindow):
             tools_layout.addWidget(btn)
         
         layout.addLayout(tools_layout)
+
+        # Alphabet keyboard
+        self.alphabet_keyboard = AlphabetKeyboard(self)
+        layout.addWidget(self.alphabet_keyboard)
 
         # Drawing and preview area
         self.grid_widget = GridWidget(self)
@@ -136,7 +141,6 @@ class POVWandDesigner(QMainWindow):
         err = 0
 
         while x >= y:
-            # Plot points in all eight octants
             points = [
                 (center_row + y, center_col + x), (center_row + x, center_col + y),
                 (center_row - y, center_col + x), (center_row - x, center_col + y),
@@ -146,7 +150,6 @@ class POVWandDesigner(QMainWindow):
             for r, c in points:
                 if 0 <= r < self.height and 0 <= c < self.width:
                     grid[r][c] = value
-            # Additional points to smooth the circle
             if x > y:
                 points = [
                     (center_row + y + 1, center_col + x), (center_row + x, center_col + y + 1),
@@ -164,7 +167,6 @@ class POVWandDesigner(QMainWindow):
                 err += 1 - 2 * x
 
     def fill_circle(self, grid, center_row, center_col, radius, value):
-        """Fill a circle with a given value."""
         for r in range(self.height):
             for c in range(self.width):
                 distance = math.sqrt((r - center_row) ** 2 + (c - center_col) ** 2)
@@ -173,28 +175,24 @@ class POVWandDesigner(QMainWindow):
 
     def draw_heart(self):
         self.clear_grid()
-        # Heart pattern as binary strings (16 bits per row)
         heart_pattern = [
-            "0000011000110000",  # Row 0
-            "0001111111111000",  # Row 1
-            "0011111111111100",  # Row 2
-            "0111111111111110",  # Row 3
-            "0111111111111110",  # Row 4
-            "0111111111111110",  # Row 5
-            "0011111111111100",  # Row 6
-            "0001111111111000",  # Row 7
-            "0000111111110000",  # Row 8
-            "0000011111100000",  # Row 9
-            "0000001111000000",  # Row 10
-            "0000000110000000",  # Row 11
+            "0000011000110000",
+            "0001111111111000",
+            "0011111111111100",
+            "0111111111111110",
+            "0111111111111110",
+            "0111111111111110",
+            "0011111111111100",
+            "0001111111111000",
+            "0000111111110000",
+            "0000011111100000",
+            "0000001111000000",
+            "0000000110000000",
         ]
-        # Calculate offset to center the pattern horizontally (16 bits wide)
         pattern_width = 16
         h_offset = (self.width - pattern_width) // 2
-        # Shift down by 4 rows to center vertically (16 rows total, 12 rows pattern)
-        v_offset = 2  # (16 - 12) // 2 + 2 = 4
+        v_offset = 2
 
-        # Draw the heart pattern
         for row, binary in enumerate(heart_pattern):
             shifted_row = row + v_offset
             for col, bit in enumerate(binary):
@@ -207,8 +205,7 @@ class POVWandDesigner(QMainWindow):
 
     def draw_hi(self):
         self.clear_grid()
-        # Calculate offset to center the pattern
-        pattern_width = 13  # Max col index (13) - Min col index (2) + 1
+        pattern_width = 13
         offset = (self.width - pattern_width) // 2
         hi_pattern = [
             # Top half
@@ -246,20 +243,16 @@ class POVWandDesigner(QMainWindow):
 
     def draw_smiley(self):
         self.clear_grid()
-        # Center the smiley face
         center_col = self.width // 2
-        center_row = self.height // 2  # Middle of 16 rows is 7-8
-        radius = min(self.width // 4, 7)  # Adjust radius based on grid size, max 7 for height
+        center_row = self.height // 2
+        radius = min(self.width // 4, 7)
 
-        # Fill the face circle with lit LEDs (True) to create a solid background
         self.fill_circle(self.grid, center_row, center_col, radius, True)
 
-        # Draw unlit eyes (False)
         eye_radius = radius // 4
         self.fill_circle(self.grid, center_row - radius // 2, center_col - radius // 2, eye_radius, False)
         self.fill_circle(self.grid, center_row - radius // 2, center_col + radius // 2, eye_radius, False)
 
-        # Draw unlit mouth (False)
         mouth_radius = radius // 2
         for col in range(center_col - mouth_radius, center_col + mouth_radius + 1):
             row = center_row + radius // 2
@@ -270,7 +263,6 @@ class POVWandDesigner(QMainWindow):
             if 0 <= row < self.height and 0 <= col < self.width:
                 self.grid[row][col] = False
 
-        # Redraw the outline of the face circle to ensure it's crisp and black
         self.draw_circle(self.grid, center_row, center_col, center_row + radius, center_col, True)
 
         self.grid_widget.update()
@@ -306,12 +298,636 @@ class POVWandDesigner(QMainWindow):
         
         self.hex_output.setText(formatted_code)
 
+class AlphabetKeyboard(QWidget):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.parent = parent
+        layout = QHBoxLayout(self)
+        layout.setSpacing(2)
+
+        # Define the 9x5 letter patterns here for drag preview
+        self.letter_patterns = {
+            'A': [
+                "00100",
+                "01010",
+                "10001",
+                "10001",
+                "11111",
+                "10001",
+                "10001",
+                "10001",
+                "10001"
+            ],
+            'B': [
+                "11100",
+                "10010",
+                "10001",
+                "10001",
+                "11110",
+                "10001",
+                "10001",
+                "10010",
+                "11100"
+            ],
+            'C': [
+                "01110",
+                "10001",
+                "10000",
+                "10000",
+                "10000",
+                "10000",
+                "10000",
+                "10001",
+                "01110"
+            ],
+            'D': [
+                "11100",
+                "10010",
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "10010",
+                "11100"
+            ],
+            'E': [
+                "11111",
+                "10000",
+                "10000",
+                "10000",
+                "11110",
+                "10000",
+                "10000",
+                "10000",
+                "11111"
+            ],
+            'F': [
+                "11111",
+                "10000",
+                "10000",
+                "10000",
+                "11110",
+                "10000",
+                "10000",
+                "10000",
+                "10000"
+            ],
+            'G': [
+                "01110",
+                "10001",
+                "10000",
+                "10000",
+                "10011",
+                "10001",
+                "10001",
+                "10001",
+                "01110"
+            ],
+            'H': [
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "11111",
+                "10001",
+                "10001",
+                "10001",
+                "10001"
+            ],
+            'I': [
+                "11111",
+                "00100",
+                "00100",
+                "00100",
+                "00100",
+                "00100",
+                "00100",
+                "00100",
+                "11111"
+            ],
+            'J': [
+                "00111",
+                "00010",
+                "00010",
+                "00010",
+                "00010",
+                "00010",
+                "10010",
+                "10010",
+                "01100"
+            ],
+            'K': [
+                "10001",
+                "10010",
+                "10100",
+                "11000",
+                "11000",
+                "10100",
+                "10010",
+                "10001",
+                "10001"
+            ],
+            'L': [
+                "10000",
+                "10000",
+                "10000",
+                "10000",
+                "10000",
+                "10000",
+                "10000",
+                "10000",
+                "11111"
+            ],
+            'M': [
+                "10001",
+                "11011",
+                "10101",
+                "10101",
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "10001"
+            ],
+            'N': [
+                "10001",
+                "11001",
+                "11001",
+                "10101",
+                "10101",
+                "10011",
+                "10011",
+                "10001",
+                "10001"
+            ],
+            'O': [
+                "01110",
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "01110"
+            ],
+            'P': [
+                "11110",
+                "10001",
+                "10001",
+                "10001",
+                "11110",
+                "10000",
+                "10000",
+                "10000",
+                "10000"
+            ],
+            'Q': [
+                "01110",
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "10101",
+                "10011",
+                "10001",
+                "01111"
+            ],
+            'R': [
+                "11110",
+                "10001",
+                "10001",
+                "10001",
+                "11110",
+                "10010",
+                "10001",
+                "10001",
+                "10001"
+            ],
+            'S': [
+                "01111",
+                "10000",
+                "10000",
+                "10000",
+                "01110",
+                "00001",
+                "00001",
+                "00001",
+                "11110"
+            ],
+            'T': [
+                "11111",
+                "00100",
+                "00100",
+                "00100",
+                "00100",
+                "00100",
+                "00100",
+                "00100",
+                "00100"
+            ],
+            'U': [
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "01110"
+            ],
+            'V': [
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "01010",
+                "01010",
+                "00100"
+            ],
+            'W': [
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "10101",
+                "10101",
+                "10101",
+                "11011",
+                "10001"
+            ],
+            'X': [
+                "10001",
+                "10001",
+                "01010",
+                "01010",
+                "00100",
+                "01010",
+                "01010",
+                "10001",
+                "10001"
+            ],
+            'Y': [
+                "10001",
+                "10001",
+                "10001",
+                "01010",
+                "01010",
+                "00100",
+                "00100",
+                "00100",
+                "00100"
+            ],
+            'Z': [
+                "11111",
+                "00001",
+                "00010",
+                "00100",
+                "01000",
+                "01000",
+                "10000",
+                "10000",
+                "11111"
+            ]
+        }
+
+        # Create buttons for each letter (A-Z)
+        for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+            btn = QPushButton(letter)
+            btn.setFixedSize(30, 30)
+            btn.setStyleSheet("background-color: #D3D3D3; font-size: 14px;")
+            btn.mousePressEvent = lambda event, l=letter: self.start_drag(event, l)
+            layout.addWidget(btn)
+
+    def create_letter_pixmap(self, letter):
+        # Create a pixmap for the letter (9x5 pixels, scaled up for visibility)
+        cell_size = 5  # Smaller cell size for the drag preview
+        pixmap = QPixmap(5 * cell_size, 9 * cell_size)
+        pixmap.fill(Qt.transparent)
+        painter = QPainter(pixmap)
+        
+        pattern = self.letter_patterns[letter]
+        for r, row in enumerate(pattern):
+            for c, bit in enumerate(row):
+                if bit == '1':
+                    painter.fillRect(c * cell_size, r * cell_size, cell_size, cell_size, Qt.black)
+        
+        painter.end()
+        return pixmap
+
+    def start_drag(self, event, letter):
+        if event.button() == Qt.LeftButton:
+            drag = QDrag(self)
+            mime_data = QMimeData()
+            mime_data.setText(letter)
+            drag.setMimeData(mime_data)
+            # Set the pixmap to show the letter while dragging
+            pixmap = self.create_letter_pixmap(letter)
+            drag.setPixmap(pixmap)
+            drag.setHotSpot(QPoint(pixmap.width() // 2, pixmap.height() // 2))
+            drag.exec_(Qt.CopyAction)
+
 class GridWidget(QWidget):
     def __init__(self, parent):
         super().__init__(parent)
         self.parent = parent
         self.cell_size = 20
         self.setMinimumSize(self.parent.width * self.cell_size, self.parent.height * self.cell_size)
+        self.setAcceptDrops(True)
+
+        # 9x5 pixel font for letters A-Z (9 tall, 5 wide)
+        self.letter_patterns = {
+            'A': [
+                "00100",
+                "01010",
+                "10001",
+                "10001",
+                "11111",
+                "10001",
+                "10001",
+                "10001",
+                "10001"
+            ],
+            'B': [
+                "11100",
+                "10010",
+                "10001",
+                "10001",
+                "11110",
+                "10001",
+                "10001",
+                "10010",
+                "11100"
+            ],
+            'C': [
+                "01110",
+                "10001",
+                "10000",
+                "10000",
+                "10000",
+                "10000",
+                "10000",
+                "10001",
+                "01110"
+            ],
+            'D': [
+                "11100",
+                "10010",
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "10010",
+                "11100"
+            ],
+            'E': [
+                "11111",
+                "10000",
+                "10000",
+                "10000",
+                "11110",
+                "10000",
+                "10000",
+                "10000",
+                "11111"
+            ],
+            'F': [
+                "11111",
+                "10000",
+                "10000",
+                "10000",
+                "11110",
+                "10000",
+                "10000",
+                "10000",
+                "10000"
+            ],
+            'G': [
+                "01110",
+                "10001",
+                "10000",
+                "10000",
+                "10011",
+                "10001",
+                "10001",
+                "10001",
+                "01110"
+            ],
+            'H': [
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "11111",
+                "10001",
+                "10001",
+                "10001",
+                "10001"
+            ],
+            'I': [
+                "11111",
+                "00100",
+                "00100",
+                "00100",
+                "00100",
+                "00100",
+                "00100",
+                "00100",
+                "11111"
+            ],
+            'J': [
+                "00111",
+                "00010",
+                "00010",
+                "00010",
+                "00010",
+                "00010",
+                "10010",
+                "10010",
+                "01100"
+            ],
+            'K': [
+                "10001",
+                "10010",
+                "10100",
+                "11000",
+                "11000",
+                "10100",
+                "10010",
+                "10001",
+                "10001"
+            ],
+            'L': [
+                "10000",
+                "10000",
+                "10000",
+                "10000",
+                "10000",
+                "10000",
+                "10000",
+                "10000",
+                "11111"
+            ],
+            'M': [
+                "10001",
+                "11011",
+                "10101",
+                "10101",
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "10001"
+            ],
+            'N': [
+                "10001",
+                "11001",
+                "11001",
+                "10101",
+                "10101",
+                "10011",
+                "10011",
+                "10001",
+                "10001"
+            ],
+            'O': [
+                "01110",
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "01110"
+            ],
+            'P': [
+                "11110",
+                "10001",
+                "10001",
+                "10001",
+                "11110",
+                "10000",
+                "10000",
+                "10000",
+                "10000"
+            ],
+            'Q': [
+                "01110",
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "10101",
+                "10011",
+                "10001",
+                "01111"
+            ],
+            'R': [
+                "11110",
+                "10001",
+                "10001",
+                "10001",
+                "11110",
+                "10010",
+                "10001",
+                "10001",
+                "10001"
+            ],
+            'S': [
+                "01111",
+                "10000",
+                "10000",
+                "10000",
+                "01110",
+                "00001",
+                "00001",
+                "00001",
+                "11110"
+            ],
+            'T': [
+                "11111",
+                "00100",
+                "00100",
+                "00100",
+                "00100",
+                "00100",
+                "00100",
+                "00100",
+                "00100"
+            ],
+            'U': [
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "01110"
+            ],
+            'V': [
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "01010",
+                "01010",
+                "00100"
+            ],
+            'W': [
+                "10001",
+                "10001",
+                "10001",
+                "10001",
+                "10101",
+                "10101",
+                "10101",
+                "11011",
+                "10001"
+            ],
+            'X': [
+                "10001",
+                "10001",
+                "01010",
+                "01010",
+                "00100",
+                "01010",
+                "01010",
+                "10001",
+                "10001"
+            ],
+            'Y': [
+                "10001",
+                "10001",
+                "10001",
+                "01010",
+                "01010",
+                "00100",
+                "00100",
+                "00100",
+                "00100"
+            ],
+            'Z': [
+                "11111",
+                "00001",
+                "00010",
+                "00100",
+                "01000",
+                "01000",
+                "10000",
+                "10000",
+                "11111"
+            ]
+        }
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -330,13 +946,14 @@ class GridWidget(QWidget):
         painter.drawLine(0, 8 * self.cell_size, self.parent.width * self.cell_size, 8 * self.cell_size)
 
     def mousePressEvent(self, event):
-        self.parent.is_mouse_down = True
-        row, col = event.pos().y() // self.cell_size, event.pos().x() // self.cell_size
-        if self.parent.current_tool in ["line", "circle"]:
-            self.parent.start_point = QPoint(int(col), int(row))
-        else:
-            self.handle_cell(int(row), int(col))
-        self.update()
+        if self.parent.current_tool in ["draw", "erase", "line", "circle"]:
+            self.parent.is_mouse_down = True
+            row, col = event.pos().y() // self.cell_size, event.pos().x() // self.cell_size
+            if self.parent.current_tool in ["line", "circle"]:
+                self.parent.start_point = QPoint(int(col), int(row))
+            else:
+                self.handle_cell(int(row), int(col))
+            self.update()
 
     def mouseMoveEvent(self, event):
         if not self.parent.is_mouse_down:
@@ -374,6 +991,28 @@ class GridWidget(QWidget):
             self.parent.grid[row][col] = self.parent.current_tool == "draw"
             self.parent.preview_widget.update()
 
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasText():
+            event.acceptProposedAction()
+
+    def dropEvent(self, event):
+        letter = event.mimeData().text()
+        if letter in self.letter_patterns:
+            row = event.pos().y() // self.cell_size
+            col = event.pos().x() // self.cell_size
+            self.draw_letter(letter, row, col)
+            self.update()
+            self.parent.preview_widget.update()
+
+    def draw_letter(self, letter, start_row, start_col):
+        pattern = self.letter_patterns[letter]
+        for r, row in enumerate(pattern):
+            for c, bit in enumerate(row):
+                grid_row = start_row + r
+                grid_col = start_col + c
+                if 0 <= grid_row < self.parent.height and 0 <= grid_col < self.parent.width:
+                    self.parent.grid[grid_row][grid_col] = (bit == '1')
+
 class PreviewWidget(QWidget):
     def __init__(self, parent):
         super().__init__(parent)
@@ -390,7 +1029,6 @@ class PreviewWidget(QWidget):
                 if self.parent.grid[row][col]:
                     image.setPixel(col, row, QColor(Qt.black).rgb())
         
-        # Simulate POV effect by stretching horizontally
         scaled = image.scaled(self.width(), self.height(), Qt.KeepAspectRatio)
         painter.drawPixmap(0, 0, QPixmap.fromImage(scaled))
 
