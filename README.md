@@ -7,8 +7,9 @@ A graphical tool for creating persistence of vision (POV) LED patterns for progr
 This application allows you to design patterns that can be displayed on POV (Persistence of Vision) LED wands. These are devices with a row of LEDs that, when waved through the air, create the illusion of an image due to the persistence of vision effect.
 
 ![POV Wand Pattern Designer Interface](docs/app-screenshot.png)
+![Results](docs/IMG_2859.png)
 
-![POV Wand Example](https://www.aliexpress.us/item/3256806595449574.html)
+[POV Wand Example](https://www.aliexpress.us/item/3256806595449574.html)
 
 ## Features
 
