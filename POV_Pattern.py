@@ -148,8 +148,18 @@ class POVWandDesigner(QMainWindow):
                 x -= 1
                 err -= 2 * x + 1
 
+    def fill_circle(self, grid, center_row, center_col, radius, value):
+        """Fill a circle with a given value."""
+        for r in range(self.height):
+            for c in range(self.width):
+                if math.sqrt((r - center_row) ** 2 + (c - center_col) ** 2) <= radius:
+                    grid[r][c] = value
+
     def draw_heart(self):
         self.clear_grid()
+        # Calculate offset to center the pattern
+        pattern_width = 31  # Max col index (31) - Min col index (3) + 1
+        offset = (self.width - pattern_width) // 2
         heart_pattern = [
             [(3, 3), (4, 3), (5, 3), (6, 3), (10, 3), (11, 3), (12, 3), (13, 3), (14, 3), (15, 3),
              (17, 3), (18, 3), (19, 3), (20, 3), (21, 3), (22, 3), (23, 3), (24, 3), (25, 3), (26, 3), (27, 3), (28, 3), (29, 3)],
@@ -162,13 +172,17 @@ class POVWandDesigner(QMainWindow):
         ]
         for points in heart_pattern:
             for col, row in points:
-                if col < self.width and row < self.height:
-                    self.grid[row][col] = True
+                shifted_col = col + offset
+                if 0 <= shifted_col < self.width and row < self.height:
+                    self.grid[row][shifted_col] = True
         self.grid_widget.update()
         self.preview_widget.update()
 
     def draw_hi(self):
         self.clear_grid()
+        # Calculate offset to center the pattern
+        pattern_width = 13  # Max col index (13) - Min col index (2) + 1
+        offset = (self.width - pattern_width) // 2
         hi_pattern = [
             [(2, 1), (2, 2), (2, 3), (2, 4), (2, 5), (2, 6), (2, 7), (3, 4), (4, 4), (5, 4),
              (6, 1), (6, 2), (6, 3), (6, 4), (6, 5), (6, 6), (6, 7), (9, 1), (10, 1), (11, 1), (12, 1), (13, 1),
@@ -178,20 +192,38 @@ class POVWandDesigner(QMainWindow):
         ]
         for points in hi_pattern:
             for col, row in points:
-                if col < self.width and row < self.height:
-                    self.grid[row][col] = True
+                shifted_col = col + offset
+                if 0 <= shifted_col < self.width and row < self.height:
+                    self.grid[row][shifted_col] = True
         self.grid_widget.update()
         self.preview_widget.update()
 
     def draw_smiley(self):
         self.clear_grid()
-        self.draw_circle(self.grid, 7, 8, 15, 16, True)
-        self.draw_circle(self.grid, 4, 5, 5, 7, True)
-        self.draw_circle(self.grid, 4, 11, 5, 13, True)
-        for col in range(5, 12):
-            self.grid[9][col] = True
-        for r, c in [(10, 4), (10, 12), (11, 3), (11, 13)]:
-            self.grid[r][c] = True
+        # Center the smiley face
+        center_col = self.width // 2
+        center_row = self.height // 2  # Middle of 16 rows is 7-8
+        radius = min(self.width // 5, 7)  # Adjust radius based on grid size, max 7 for height
+
+        # Fill the face circle with lit LEDs (True)
+        self.fill_circle(self.grid, center_row, center_col, radius, True)
+
+        # Draw unlit eyes (False)
+        eye_radius = radius // 4
+        self.fill_circle(self.grid, center_row - radius // 2, center_col - radius // 2, eye_radius, False)
+        self.fill_circle(self.grid, center_row - radius // 2, center_col + radius // 2, eye_radius, False)
+
+        # Draw unlit mouth (False)
+        mouth_radius = radius // 2
+        for col in range(center_col - mouth_radius, center_col + mouth_radius + 1):
+            row = center_row + radius // 2
+            if 0 <= row < self.height and 0 <= col < self.width:
+                self.grid[row][col] = False
+        for col in [center_col - mouth_radius - 1, center_col + mouth_radius + 1]:
+            row = center_row + radius // 2 - 1
+            if 0 <= row < self.height and 0 <= col < self.width:
+                self.grid[row][col] = False
+
         self.grid_widget.update()
         self.preview_widget.update()
 
