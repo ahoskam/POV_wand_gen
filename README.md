@@ -8,7 +8,7 @@ This application allows you to design patterns that can be displayed on POV (Per
 
 ![POV Wand Pattern Designer Interface](docs/app-screenshot.png)
 
-![POV Wand Example](https://www.aliexpress.us/item/3256806595449574.html)
+[POV Wand Example](https://www.aliexpress.us/item/3256806595449574.html)
 
 ## Features
 
